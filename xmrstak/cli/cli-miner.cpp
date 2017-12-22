@@ -21,6 +21,9 @@
   *
   */
 
+#include <Windows.h>
+#include <shellapi.h>
+
 #include "xmrstak/misc/executor.hpp"
 #include "xmrstak/backend/miner_work.hpp"
 #include "xmrstak/backend/globalStates.hpp"
@@ -33,21 +36,12 @@
 #include "xmrstak/version.hpp"
 #include "xmrstak/misc/utility.hpp"
 
-#ifndef CONF_NO_HTTPD
-#	include "xmrstak/http/httpd.hpp"
-#endif
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string>
 #include <iostream>
 #include <time.h>
 #include <iostream>
-
-#ifndef CONF_NO_TLS
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#endif
 
 #ifdef _WIN32
 #	define strcasecmp _stricmp
@@ -241,18 +235,7 @@ void do_guided_config()
 		getline(std::cin, passwd);
 	}
 
-	bool tls;
-#ifdef CONF_NO_TLS
-	tls = false;
-#else
-	if(!userSetPool)
-	{
-		prompt_once(prompted);
-		tls = read_yes_no("- Does this pool port support TLS/SSL? Use no if unknown. (y/N)");
-	}
-	else
-		tls = params::inst().poolUseTls;
-#endif
+	bool tls = false;
 
 	bool nicehash;
 	if(!userSetPool)
@@ -316,6 +299,7 @@ void do_guided_config()
  *   - author: Cody Gray
  *   - date: Feb 4 '11
  */
+
 void UACDialog(const std::string& binaryName, std::string& args)
 {
 		args += " --noUAC";
@@ -345,15 +329,6 @@ void UACDialog(const std::string& binaryName, std::string& args)
 
 int main(int argc, char *argv[])
 {
-#ifndef CONF_NO_TLS
-	SSL_library_init();
-	SSL_load_error_strings();
-	ERR_load_BIO_strings();
-	ERR_load_crypto_strings();
-	SSL_load_error_strings();
-	OpenSSL_add_all_digests();
-#endif
-
 	srand(time(0));
 
 	using namespace xmrstak;
@@ -483,7 +458,7 @@ int main(int argc, char *argv[])
 				return 1;
 			}
 			params::inst().poolURL = argv[i];
-			params::inst().poolUseTls = true;
+			params::inst().poolUseTls = false;
 		}
 		else if(opName.compare("-u") == 0 || opName.compare("--user") == 0)
 		{
@@ -579,17 +554,6 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-#ifndef CONF_NO_HTTPD
-	if(jconf::inst()->GetHttpdPort() != 0)
-	{
-		if (!httpd::inst()->start_daemon())
-		{
-			win_exit();
-			return 1;
-		}
-	}
-#endif
-
 	printer::inst()->print_str("-------------------------------------------------------------------\n");
 	printer::inst()->print_str(get_version_str_short().c_str());
 	printer::inst()->print_str("\n\n");
@@ -601,13 +565,6 @@ int main(int argc, char *argv[])
 #ifndef CONF_NO_OPENCL
 	printer::inst()->print_str("Based on OpenCL mining code by wolf9466.\n");
 #endif
-	char buffer[64];
-	snprintf(buffer, sizeof(buffer), "\nConfigurable dev donation level is set to %.1f%%\n\n", fDevDonationLevel * 100.0);
-	printer::inst()->print_str(buffer);
-	printer::inst()->print_str("You can use following keys to display reports:\n");
-	printer::inst()->print_str("'h' - hashrate\n");
-	printer::inst()->print_str("'r' - results\n");
-	printer::inst()->print_str("'c' - connection\n");
 	printer::inst()->print_str("-------------------------------------------------------------------\n");
 	if(::jconf::inst()->IsCurrencyMonero())
 		printer::inst()->print_msg(L0,"Start mining: MONERO");

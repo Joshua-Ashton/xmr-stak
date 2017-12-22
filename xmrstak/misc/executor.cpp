@@ -35,7 +35,6 @@
 #include "xmrstak/misc/console.hpp"
 #include "xmrstak/donate-level.hpp"
 #include "xmrstak/version.hpp"
-#include "xmrstak/http/webdesign.hpp"
 
 #include <thread>
 #include <string>
@@ -154,7 +153,7 @@ void executor::eval_pool_choice()
 	std::vector<jpsock*> eval_pools;
 	eval_pools.reserve(pools.size());
 
-	bool dev_time = is_dev_time();
+	bool dev_time = false;
 	if(!get_live_pools(eval_pools, dev_time))
 		return;
 
@@ -168,9 +167,6 @@ void executor::eval_pool_choice()
 	// Special case - if we are without a pool, connect to all find a live pool asap
 	if(running == 0)
 	{
-		if(dev_time)
-			printer::inst()->print_msg(L1, "Fast-connecting to dev pool ...");
-
 		for(jpsock* pool : eval_pools)
 		{
 			if(pool->can_connect())
@@ -193,10 +189,7 @@ void executor::eval_pool_choice()
 	{
 		if(!goal->is_running() && goal->can_connect())
 		{
-			if(dev_time)
-				printer::inst()->print_msg(L1, "Connecting to dev pool ...");
-			else
-				printer::inst()->print_msg(L1, "Connecting to %s pool ...", goal->get_pool_addr());
+			printer::inst()->print_msg(L1, "Connecting to %s pool ...", goal->get_pool_addr());
 
 			std::string error;
 			if(!goal->connect(error))
@@ -322,10 +315,7 @@ void executor::on_sock_ready(size_t pool_id)
 {
 	jpsock* pool = pick_pool_by_id(pool_id);
 
-	if(pool->is_dev_pool())
-		printer::inst()->print_msg(L1, "Dev pool connected. Logging in...");
-	else
-		printer::inst()->print_msg(L1, "Pool %s connected. Logging in...", pool->get_pool_addr());
+	printer::inst()->print_msg(L1, "Pool %s connected. Logging in...", pool->get_pool_addr());
 
 	if(!pool->cmd_login())
 	{
@@ -381,10 +371,7 @@ void executor::on_pool_have_job(size_t pool_id, pool_job& oPoolJob)
 		return;
 
 	if(iPoolDiff != pool->get_current_diff())
-	{
 		iPoolDiff = pool->get_current_diff();
-		printer::inst()->print_msg(L2, "Difficulty changed. Now: %llu.", int_port(iPoolDiff));
-	}
 
 	if(dat.pool_id != pool_id)
 	{
@@ -399,8 +386,6 @@ void executor::on_pool_have_job(size_t pool_id, pool_job& oPoolJob)
 		else
 			printer::inst()->print_msg(L2, "Pool logged in.");
 	}
-	else
-		printer::inst()->print_msg(L3, "New block detected.");
 }
 
 void executor::on_miner_result(size_t pool_id, job_result& oResult)
@@ -436,7 +421,6 @@ void executor::on_miner_result(size_t pool_id, job_result& oResult)
 	{
 		uint64_t* targets = (uint64_t*)oResult.bResult;
 		log_result_ok(jpsock::t64_to_diff(targets[3]));
-		printer::inst()->print_msg(L3, "Result accepted by the pool.");
 	}
 	else
 	{
@@ -958,161 +942,15 @@ void executor::print_report(ex_event_name ev)
 
 void executor::http_hashrate_report(std::string& out)
 {
-	char num_a[32], num_b[32], num_c[32], num_d[32];
-	char buffer[4096];
-	size_t nthd = pvThreads->size();
-
-	out.reserve(4096);
-
-	snprintf(buffer, sizeof(buffer), sHtmlCommonHeader, "Hashrate Report", ver_html, "Hashrate Report");
-	out.append(buffer);
-
-	bool have_motd = false;
-	if(jconf::inst()->PrintMotd())
-	{
-		std::string motd;
-		for(jpsock& pool : pools)
-		{
-			motd.empty();
-			if(pool.get_pool_motd(motd) && motd_filter_web(motd))
-			{
-				if(!have_motd)
-				{
-					out.append(sHtmlMotdBoxStart);
-					have_motd = true;
-				}
-				
-				snprintf(buffer, sizeof(buffer), sHtmlMotdEntry, pool.get_pool_addr(), motd.c_str());
-				out.append(buffer);
-			}
-		}
-	}
-
-	if(have_motd)
-		out.append(sHtmlMotdBoxEnd);
-
-	snprintf(buffer, sizeof(buffer), sHtmlHashrateBodyHigh, (unsigned int)nthd + 3);
-	out.append(buffer);
-
-	double fTotal[3] = { 0.0, 0.0, 0.0};
-	for(size_t i=0; i < nthd; i++)
-	{
-		double fHps[3];
-
-		fHps[0] = telem->calc_telemetry_data(10000, i);
-		fHps[1] = telem->calc_telemetry_data(60000, i);
-		fHps[2] = telem->calc_telemetry_data(900000, i);
-
-		num_a[0] = num_b[0] = num_c[0] ='\0';
-		hps_format(fHps[0], num_a, sizeof(num_a));
-		hps_format(fHps[1], num_b, sizeof(num_b));
-		hps_format(fHps[2], num_c, sizeof(num_c));
-
-		fTotal[0] += fHps[0];
-		fTotal[1] += fHps[1];
-		fTotal[2] += fHps[2];
-
-		snprintf(buffer, sizeof(buffer), sHtmlHashrateTableRow, (unsigned int)i, num_a, num_b, num_c);
-		out.append(buffer);
-	}
-
-	num_a[0] = num_b[0] = num_c[0] = num_d[0] ='\0';
-	hps_format(fTotal[0], num_a, sizeof(num_a));
-	hps_format(fTotal[1], num_b, sizeof(num_b));
-	hps_format(fTotal[2], num_c, sizeof(num_c));
-	hps_format(fHighestHps, num_d, sizeof(num_d));
-
-	snprintf(buffer, sizeof(buffer), sHtmlHashrateBodyLow, num_a, num_b, num_c, num_d);
-	out.append(buffer);
+	
 }
 
 void executor::http_result_report(std::string& out)
 {
-	char date[128];
-	char buffer[4096];
-
-	out.reserve(4096);
-
-	snprintf(buffer, sizeof(buffer), sHtmlCommonHeader, "Result Report", ver_html,  "Result Report");
-	out.append(buffer);
-
-	size_t iGoodRes = vMineResults[0].count, iTotalRes = iGoodRes;
-	size_t ln = vMineResults.size();
-
-	for(size_t i=1; i < ln; i++)
-		iTotalRes += vMineResults[i].count;
-
-	double fGoodResPrc = 0.0;
-	if(iTotalRes > 0)
-		fGoodResPrc = 100.0 * iGoodRes / iTotalRes;
-
-	double fAvgResTime = 0.0;
-	if(iPoolCallTimes.size() > 0)
-	{
-		using namespace std::chrono;
-		fAvgResTime = ((double)duration_cast<seconds>(system_clock::now() - tPoolConnTime).count())
-			/ iPoolCallTimes.size();
-	}
-
-	snprintf(buffer, sizeof(buffer), sHtmlResultBodyHigh,
-		iPoolDiff, iGoodRes, iTotalRes, fGoodResPrc, fAvgResTime, iPoolHashes,
-		int_port(iTopDiff[0]), int_port(iTopDiff[1]), int_port(iTopDiff[2]), int_port(iTopDiff[3]),
-		int_port(iTopDiff[4]), int_port(iTopDiff[5]), int_port(iTopDiff[6]), int_port(iTopDiff[7]),
-		int_port(iTopDiff[8]), int_port(iTopDiff[9]));
-
-	out.append(buffer);
-
-	for(size_t i=1; i < vMineResults.size(); i++)
-	{
-		snprintf(buffer, sizeof(buffer), sHtmlResultTableRow, vMineResults[i].msg.c_str(),
-			int_port(vMineResults[i].count), time_format(date, sizeof(date), vMineResults[i].time));
-		out.append(buffer);
-	}
-
-	out.append(sHtmlResultBodyLow);
 }
 
 void executor::http_connection_report(std::string& out)
 {
-	char date[128];
-	char buffer[4096];
-
-	out.reserve(4096);
-
-	snprintf(buffer, sizeof(buffer), sHtmlCommonHeader, "Connection Report", ver_html,  "Connection Report");
-	out.append(buffer);
-
-	jpsock* pool = pick_pool_by_id(current_pool_id);
-	if(pool != nullptr && pool->is_dev_pool())
-		pool = pick_pool_by_id(last_usr_pool_id);
-
-	const char* cdate = "not connected";
-	if (pool != nullptr && pool->is_running() && pool->is_logged_in())
-		cdate = time_format(date, sizeof(date), tPoolConnTime);
-
-	size_t n_calls = iPoolCallTimes.size();
-	unsigned int ping_time = 0;
-	if (n_calls > 1)
-	{
-		//Not-really-but-good-enough median
-		std::nth_element(iPoolCallTimes.begin(), iPoolCallTimes.begin() + n_calls/2, iPoolCallTimes.end());
-		ping_time = iPoolCallTimes[n_calls/2];
-	}
-
-	snprintf(buffer, sizeof(buffer), sHtmlConnectionBodyHigh,
-		pool != nullptr ? pool->get_pool_addr() : "not connected",
-		cdate, ping_time);
-	out.append(buffer);
-
-
-	for(size_t i=0; i < vSocketLog.size(); i++)
-	{
-		snprintf(buffer, sizeof(buffer), sHtmlConnectionTableRow,
-			time_format(date, sizeof(date), vSocketLog[i].time), vSocketLog[i].msg.c_str());
-		out.append(buffer);
-	}
-
-	out.append(sHtmlConnectionBodyLow);
 }
 
 inline const char* hps_format_json(double h, char* buf, size_t l)
@@ -1128,154 +966,15 @@ inline const char* hps_format_json(double h, char* buf, size_t l)
 
 void executor::http_json_report(std::string& out)
 {
-	const char *a, *b, *c;
-	char num_a[32], num_b[32], num_c[32];
-	char hr_buffer[64];
-	std::string hr_thds, res_error, cn_error;
-
-	size_t nthd = pvThreads->size();
-	double fTotal[3] = { 0.0, 0.0, 0.0};
-	hr_thds.reserve(nthd * 32);
-
-	for(size_t i=0; i < nthd; i++)
-	{
-		if(i != 0) hr_thds.append(1, ',');
-
-		double fHps[3];
-		fHps[0] = telem->calc_telemetry_data(10000, i);
-		fHps[1] = telem->calc_telemetry_data(60000, i);
-		fHps[2] = telem->calc_telemetry_data(900000, i);
-
-		fTotal[0] += fHps[0];
-		fTotal[1] += fHps[1];
-		fTotal[2] += fHps[2];
-
-		a = hps_format_json(fHps[0], num_a, sizeof(num_a));
-		b = hps_format_json(fHps[1], num_b, sizeof(num_b));
-		c = hps_format_json(fHps[2], num_c, sizeof(num_c));
-		snprintf(hr_buffer, sizeof(hr_buffer), sJsonApiThdHashrate, a, b, c);
-		hr_thds.append(hr_buffer);
-	}
-
-	a = hps_format_json(fTotal[0], num_a, sizeof(num_a));
-	b = hps_format_json(fTotal[1], num_b, sizeof(num_b));
-	c = hps_format_json(fTotal[2], num_c, sizeof(num_c));
-	snprintf(hr_buffer, sizeof(hr_buffer), sJsonApiThdHashrate, a, b, c);
-
-	a = hps_format_json(fHighestHps, num_a, sizeof(num_a));
-
-	size_t iGoodRes = vMineResults[0].count, iTotalRes = iGoodRes;
-	size_t ln = vMineResults.size();
-
-	for(size_t i=1; i < ln; i++)
-		iTotalRes += vMineResults[i].count;
-
-	jpsock* pool = pick_pool_by_id(current_pool_id);
-	if(pool != nullptr && pool->is_dev_pool())
-		pool = pick_pool_by_id(last_usr_pool_id);
-
-	size_t iConnSec = 0;
-	if(pool != nullptr && pool->is_running() && pool->is_logged_in())
-	{
-		using namespace std::chrono;
-		iConnSec = duration_cast<seconds>(system_clock::now() - tPoolConnTime).count();
-	}
-
-	double fAvgResTime = 0.0;
-	if(iPoolCallTimes.size() > 0)
-		fAvgResTime = double(iConnSec) / iPoolCallTimes.size();
-
-	char buffer[2048];
-	res_error.reserve((vMineResults.size() - 1) * 128);
-	for(size_t i=1; i < vMineResults.size(); i++)
-	{
-		using namespace std::chrono;
-		if(i != 1) res_error.append(1, ',');
-
-		snprintf(buffer, sizeof(buffer), sJsonApiResultError, int_port(vMineResults[i].count),
-			int_port(duration_cast<seconds>(vMineResults[i].time.time_since_epoch()).count()),
-			vMineResults[i].msg.c_str());
-		res_error.append(buffer);
-	}
-
-	size_t n_calls = iPoolCallTimes.size();
-	size_t iPoolPing = 0;
-	if (n_calls > 1)
-	{
-		//Not-really-but-good-enough median
-		std::nth_element(iPoolCallTimes.begin(), iPoolCallTimes.begin() + n_calls/2, iPoolCallTimes.end());
-		iPoolPing = iPoolCallTimes[n_calls/2];
-	}
-
-	cn_error.reserve(vSocketLog.size() * 256);
-	for(size_t i=0; i < vSocketLog.size(); i++)
-	{
-		using namespace std::chrono;
-		if(i != 0) cn_error.append(1, ',');
-
-		snprintf(buffer, sizeof(buffer), sJsonApiConnectionError,
-			int_port(duration_cast<seconds>(vMineResults[i].time.time_since_epoch()).count()),
-			vSocketLog[i].msg.c_str());
-		cn_error.append(buffer);
-	}
-
-	size_t bb_size = 2048 + hr_thds.size() + res_error.size() + cn_error.size();
-	std::unique_ptr<char[]> bigbuf( new char[ bb_size ] );
-
-	int bb_len = snprintf(bigbuf.get(), bb_size, sJsonApiFormat,
-		get_version_str().c_str(), hr_thds.c_str(), hr_buffer, a,
-		int_port(iPoolDiff), int_port(iGoodRes), int_port(iTotalRes), fAvgResTime, int_port(iPoolHashes),
-		int_port(iTopDiff[0]), int_port(iTopDiff[1]), int_port(iTopDiff[2]), int_port(iTopDiff[3]), int_port(iTopDiff[4]),
-		int_port(iTopDiff[5]), int_port(iTopDiff[6]), int_port(iTopDiff[7]), int_port(iTopDiff[8]), int_port(iTopDiff[9]),
-		res_error.c_str(), pool != nullptr ? pool->get_pool_addr() : "not connected", int_port(iConnSec), int_port(iPoolPing), cn_error.c_str());
-
-	out = std::string(bigbuf.get(), bigbuf.get() + bb_len);
+	
 }
 
 void executor::http_report(ex_event_name ev)
 {
-	assert(pHttpString != nullptr);
-
-	switch(ev)
-	{
-	case EV_HTML_HASHRATE:
-		http_hashrate_report(*pHttpString);
-		break;
-
-	case EV_HTML_RESULTS:
-		http_result_report(*pHttpString);
-		break;
-
-	case EV_HTML_CONNSTAT:
-		http_connection_report(*pHttpString);
-		break;
-
-	case EV_HTML_JSON:
-		http_json_report(*pHttpString);
-		break;
-
-	default:
-		assert(false);
-		break;
-	}
-
-	httpReady.set_value();
+	
 }
 
 void executor::get_http_report(ex_event_name ev_id, std::string& data)
 {
-	std::lock_guard<std::mutex> lck(httpMutex);
 
-	assert(pHttpString == nullptr);
-	assert(ev_id == EV_HTML_HASHRATE || ev_id == EV_HTML_RESULTS
-		|| ev_id == EV_HTML_CONNSTAT || ev_id == EV_HTML_JSON);
-
-	pHttpString = &data;
-	httpReady = std::promise<void>();
-	std::future<void> ready = httpReady.get_future();
-
-	push_event(ex_event(ev_id));
-
-	ready.wait();
-	pHttpString = nullptr;
 }

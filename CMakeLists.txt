@@ -281,58 +281,6 @@ if(NOT WIN32)
     find_package(Threads REQUIRED)
     set(LIBS ${LIBS} ${CMAKE_THREAD_LIBS_INIT})
 endif()
-################################################################################
-# Find microhttpd
-################################################################################
-
-option(MICROHTTPD_ENABLE "Enable or disable the requirement of microhttp (http deamon)" ON)
-if(MICROHTTPD_ENABLE)
-    find_path(MTHD_INCLUDE_DIR
-        NAMES
-            microhttpd.h
-        PATHS
-            /opt/local
-            /usr/local
-            /usr
-            ENV "PROGRAMFILES(X86)"
-            ENV "MICROHTTPD_ROOT"
-        PATH_SUFFIXES
-            include)
-
-    find_library(MHTD
-        NAMES
-            microhttpd
-            libmicrohttpd.lib
-        PATHS
-            ENV "MICROHTTPD_ROOT"
-        PATH_SUFFIXES
-            lib)
-    if(MHTD STREQUAL "MHTD-NOTFOUND")
-        message(FATAL_ERROR "microhttpd NOT found: use `-DMICROHTTPD_ENABLE=OFF` to build without http deamon support")
-    else()
-        set(LIBS ${LIBS} ${MHTD})
-        include_directories(AFTER ${MTHD_INCLUDE_DIR})
-    endif()
-else()
-    add_definitions("-DCONF_NO_HTTPD")
-endif()
-
-###############################################################################
-# Find OpenSSL
-###############################################################################
-
-option(OpenSSL_ENABLE "Enable or disable the requirement of OpenSSL" ON)
-if(OpenSSL_ENABLE)
-    find_package(OpenSSL)
-    if(OPENSSL_FOUND)
-        include_directories(${OPENSSL_INCLUDE_DIR})
-        set(LIBS ${LIBS} ${OPENSSL_LIBRARIES})
-    else()
-        message(FATAL_ERROR "OpenSSL NOT found: use `-DOpenSSL_ENABLE=OFF` to build without SSL support")
-    endif()
-else()
-    add_definitions("-DCONF_NO_TLS")
-endif()
 
 ################################################################################
 # Find hwloc
@@ -349,6 +297,7 @@ if(HWLOC_ENABLE)
             /usr
             ENV "PROGRAMFILES(X86)"
             ENV "HWLOC_ROOT"
+			"C:/xmr-stak-dep/hwloc"
         PATH_SUFFIXES
             include)
 
@@ -357,6 +306,7 @@ if(HWLOC_ENABLE)
             libhwloc.lib
             hwloc
         PATHS
+			"C:/xmr-stak-dep/hwloc"
             ENV "HWLOC_ROOT"
         PATH_SUFFIXES
             lib)
@@ -423,6 +373,13 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     add_definitions(-D_CRT_SECURE_NO_DEPRECATE)
     # disable min define to allow usage of std::min
     add_definitions(-DNOMINMAX)
+	
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Oi /Ot /Oy /GT /GL")
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LTCG")
+	set(CMAKE_LIB_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LTCG")
+	set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LTCG")
+	set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LTCG")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Oi /Ot /Oy /GT /GL")
 else()
     # activate sse2 and aes-ni
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse2 -maes")
@@ -446,9 +403,6 @@ add_library(xmr-stak-c
     ${SRCFILES_C}
 )
 set_property(TARGET xmr-stak-c PROPERTY C_STANDARD 99)
-if(MICROHTTPD_ENABLE)
-    target_link_libraries(xmr-stak-c ${MHTD})
-endif()
 target_link_libraries(xmr-stak-c ${LIBS})
 
 # compile generic backend files
@@ -457,7 +411,6 @@ file(GLOB BACKEND_CPP
     "xmrstak/backend/cpu/*.cpp"
     "xmrstak/backend/*.cpp"
     "xmrstak/backend/cpu/crypto/*.cpp"
-    "xmrstak/http/*.cpp"
     "xmrstak/misc/*.cpp"
     "xmrstak/net/*.cpp")
 

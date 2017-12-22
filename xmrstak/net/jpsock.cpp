@@ -104,14 +104,7 @@ jpsock::jpsock(size_t id, const char* sAddr, const char* sLogin, const char* sPa
 
 	prv = new opaque_private(bJsonCallMem, bJsonRecvMem, bJsonParseMem);
 
-#ifndef CONF_NO_TLS
-	if(tls)
-		sck = new tls_socket(this);
-	else
-		sck = new plain_socket(this);
-#else
 	sck = new plain_socket(this);
-#endif
 
 	oRecvThd = nullptr;
 	bRunning = false;
