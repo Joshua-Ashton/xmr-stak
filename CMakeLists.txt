@@ -374,12 +374,12 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     # disable min define to allow usage of std::min
     add_definitions(-DNOMINMAX)
 	
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Oi /Ot /Oy /GT /GL")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Oi /Ot /Oy /GT /GL /GS- /arch:AVX")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Oi /Ot /Oy /GT /GL /GS- /arch:AVX")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LTCG")
 	set(CMAKE_LIB_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LTCG")
 	set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LTCG")
 	set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LTCG")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Oi /Ot /Oy /GT /GL")
 else()
     # activate sse2 and aes-ni
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse2 -maes")
